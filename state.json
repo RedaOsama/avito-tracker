@@ -6,6 +6,8 @@
     "last_uid": 44806
   },
   "seen_ads": [],
+  "rules": [],
+  "next_rule_id": 1,
   "stats": {
     "forwarded": 0,
     "last_forward_at": null
