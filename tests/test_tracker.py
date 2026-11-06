@@ -6,7 +6,7 @@ from email.message import EmailMessage
 
 import pytest
 
-from tracker import main
+from tracker import filters, main
 from tracker.avito_email import find_ad_in_url, parse_ads
 from tracker.config import Config
 from tracker.state import DEFAULT_STATE, load_state, save_state
@@ -130,7 +130,7 @@ def test_test_mode_resends_without_marking_seen():
 def test_cap_per_email_summarises_rest():
     tg, cfg, state = FakeTelegram(), make_config(max_ads_per_email=1), fresh_state()
     assert main.forward_email(tg, cfg, state, make_email()) == 1
-    assert "1 more new ads" in tg.sent[-1][1]
+    assert "1 more matching ads" in tg.sent[-1][1]
     assert set(state["seen_ads"]) == {"4123456789", "4987654321"}
 
 
@@ -147,8 +147,91 @@ def test_commands_only_from_owner():
         {"update_id": 12, "message": {"chat": {"id": 42}, "text": "hello"}},
     ]
     state = fresh_state()
-    assert main.read_commands(FakeTelegram(updates), make_config(), state) == ["/status"]
+    assert main.read_commands(FakeTelegram(updates), make_config(), state) == [("/status", "")]
     assert state["tg_offset"] == 13
+
+
+# ---------- keyword rules ----------
+
+def test_parse_rule():
+    rule = filters.parse_rule("iPhone 15 Pro -чехол -Разбит <90000 >10k")
+    assert rule == {"words": ["iphone", "15", "pro"], "exclude": ["чехол", "разбит"],
+                    "min_price": 10000, "max_price": 90000}
+
+
+@pytest.mark.parametrize("text", ["", "-чехол", "<5000", "iphone >9000 <100"])
+def test_parse_rule_rejects_bad_rules(text):
+    with pytest.raises(ValueError):
+        filters.parse_rule(text)
+
+
+@pytest.mark.parametrize("rule, text, price, expected", [
+    ("iphone 15", "Apple iPhone 15 128GB", 65000, True),
+    ("iphone 15", "Apple iPhone 14", 50000, False),
+    ("айфон", "Продаю айфона 13", None, True),           # part of a word matches
+    ("iphone -чехол", "Чехол для iPhone 15", 500, False),
+    ("iphone <70000", "iPhone 15", 89990, False),
+    ("iphone <70000", "iPhone 15", None, True),          # unknown price isn't filtered out
+    ("iphone >10000", "iPhone 15", 5000, False),
+    ("елка", "Ёлка искусственная", 1000, True),          # ё == е
+])
+def test_rule_matching(rule, text, price, expected):
+    assert filters.matches(filters.parse_rule(rule), text, price) is expected
+
+
+def run_commands(state, *texts):
+    tg = FakeTelegram()
+    for text in texts:
+        cmd, _, args = text.partition(" ")
+        main.handle_command(tg, state, cmd, args.strip())
+    return tg
+
+
+def test_add_list_remove_commands():
+    state = fresh_state()
+    tg = run_commands(state, "/add iphone 15 <70000", "/add macbook air", "/list")
+    assert [r["id"] for r in state["rules"]] == [1, 2]
+    assert "Rule #1 added" in tg.sent[0][1]
+    assert "#2: macbook air" in tg.sent[2][1]
+
+    run_commands(state, "/remove 1")
+    assert [r["id"] for r in state["rules"]] == [2]
+    run_commands(state, "/add ps5")
+    assert [r["id"] for r in state["rules"]] == [2, 3]  # ids are never reused
+    run_commands(state, "/remove all")
+    assert state["rules"] == []
+
+
+def test_add_without_words_is_rejected():
+    state = fresh_state()
+    tg = run_commands(state, "/add -чехол")
+    assert state["rules"] == [] and "❌" in tg.sent[0][1]
+
+
+def test_only_matching_ads_are_sent():
+    tg, cfg, state = FakeTelegram(), make_config(), fresh_state()
+    run_commands(state, "/add iphone pro")
+    assert main.forward_email(tg, cfg, state, make_email()) == 1
+    assert "iPhone 15 Pro 256GB" in tg.sent[0][1]
+    assert "Rule #1" in tg.sent[0][1]
+    # The non-matching ad is remembered too, so adding a rule later doesn't resend old ads.
+    assert set(state["seen_ads"]) == {"4123456789", "4987654321"}
+
+
+def test_price_rule_uses_ad_price():
+    tg, cfg, state = FakeTelegram(), make_config(), fresh_state()
+    run_commands(state, "/add iphone <70000")
+    assert main.forward_email(tg, cfg, state, make_email()) == 1
+    assert "65 000 ₽" in tg.sent[0][1]
+
+
+def test_test_mode_explains_non_matches():
+    tg, cfg, state = FakeTelegram(), make_config(), fresh_state()
+    run_commands(state, "/add iphone pro")
+    main.forward_email(tg, cfg, state, make_email(), test=True)
+    texts = [t for _, t in tg.sent]
+    assert any("doesn't match" in t for t in texts)
+    assert state["seen_ads"] == []
 
 
 def test_state_round_trip(tmp_path):

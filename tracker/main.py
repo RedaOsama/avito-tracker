@@ -1,4 +1,4 @@
-"""One check: answer bot commands, forward ads from new Avito emails, save state.
+"""One check: answer bot commands, forward matching ads from new Avito emails, save state.
 
 Run with:  python -m tracker.main
 Logs print counts only (GitHub Actions logs are public for public repos).
@@ -12,6 +12,7 @@ import time
 from datetime import datetime, timezone
 from email.message import Message
 
+from . import filters
 from .avito_email import Ad, email_subject, parse_ads
 from .config import Config, load_config
 from .mail import Mailbox
@@ -23,27 +24,37 @@ SEND_PAUSE = 1.0  # seconds between Telegram messages
 
 HELP_TEXT = (
     "<b>Avito → Telegram tracker</b>\n"
-    "I forward new ads from Avito's saved-search emails.\n\n"
+    "I read Avito's saved-search emails and send you the new ads that match your keywords.\n\n"
+    "<b>Keywords</b>\n"
+    "/add iphone 15 pro – ads containing all these words\n"
+    "/add iphone 15 -чехол -разбит – …but not these words\n"
+    "/add iphone 15 &lt;70000 – …and price up to 70 000 ₽ (&gt;N = at least N; 70k also works)\n"
+    "/list – your keyword rules\n"
+    "/remove 2 – delete rule #2 (/remove all deletes every rule)\n"
+    "With no rules, every new ad is sent.\n\n"
+    "<b>Other</b>\n"
     "/status – tracker status\n"
-    "/pause – stop forwarding (emails that arrive while paused are skipped)\n"
-    "/resume – forward again\n"
-    "/test – re-send the ads from the latest Avito email\n"
-    "/help – this message\n\n"
-    "Commands are answered on the next check (about 5–15 min on GitHub)."
+    "/pause, /resume – stop / restart notifications\n"
+    "/test – re-check the latest Avito email\n\n"
+    "Replies come on the next check (about 5–15 min)."
 )
 
 
-def format_ad(ad: Ad, test: bool = False) -> str:
+# ---------- sending ads ----------
+
+def format_ad(ad: Ad, test: bool = False, rule: dict | None = None) -> str:
     head = "🧪 Test: " if test else "🆕 "
     lines = [f"{head}<b>{html.escape(ad.title or 'New ad')}</b>"]
     if ad.price:
         lines.append(f"💰 {html.escape(ad.price)}")
+    if rule:
+        lines.append(f"🔎 Rule #{rule['id']}: {filters.describe(rule)}")
     lines.append(f'🔗 <a href="{html.escape(ad.url, quote=True)}">Open on Avito</a>')
     return "\n".join(lines)
 
 
-def send_ad(tg: Telegram, ad: Ad, test: bool = False) -> None:
-    text = format_ad(ad, test)
+def send_ad(tg: Telegram, ad: Ad, test: bool = False, rule: dict | None = None) -> None:
+    text = format_ad(ad, test, rule)
     if ad.image:
         try:
             tg.send_photo(ad.image, text)
@@ -61,7 +72,11 @@ def remember(state: dict, ad_id: str) -> None:
 
 
 def forward_email(tg: Telegram, cfg: Config, state: dict, msg: Message, test: bool = False) -> int:
-    """Send the not-yet-seen ads in ``msg``; in test mode send them all. Returns ads sent."""
+    """Send the new ads in ``msg`` that match the keyword rules. Returns ads sent.
+
+    In test mode every ad in the email is shown (already-seen ones too), with
+    a note saying whether it matches a rule; nothing is marked as seen.
+    """
     ads = parse_ads(msg)
     if not ads:
         subject = html.escape(email_subject(msg))
@@ -71,26 +86,45 @@ def forward_email(tg: Telegram, cfg: Config, state: dict, msg: Message, test: bo
             tg.send_message(f"📩 New Avito email (no ads detected):\n<b>{subject}</b>")
         return 0
 
+    rules = state["rules"]
     seen = set(state["seen_ads"])
-    new = ads if test else [a for a in ads if a.id not in seen]
-    shown, extra = new[: cfg.max_ads_per_email], new[cfg.max_ads_per_email:]
-    for ad in shown:
-        send_ad(tg, ad, test)
-        if not test:
-            remember(state, ad.id)
-            state["stats"]["forwarded"] += 1
-            state["stats"]["last_forward_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    if test:
+        for ad in ads[: cfg.max_ads_per_email]:
+            rule = filters.first_match(rules, ad.search_text, ad.price_value) if rules else None
+            send_ad(tg, ad, test=True, rule=rule)
+            if rules and rule is None:
+                tg.send_message("↑ doesn't match any of your rules, so it would not be sent.")
+            time.sleep(SEND_PAUSE)
+        return min(len(ads), cfg.max_ads_per_email)
+
+    to_send: list[tuple[Ad, dict | None]] = []
+    for ad in ads:
+        if ad.id in seen:
+            continue
+        remember(state, ad.id)  # non-matching ads are remembered too, so they're never re-checked
+        if not rules:
+            to_send.append((ad, None))
+        else:
+            rule = filters.first_match(rules, ad.search_text, ad.price_value)
+            if rule:
+                to_send.append((ad, rule))
+
+    shown, extra = to_send[: cfg.max_ads_per_email], to_send[cfg.max_ads_per_email:]
+    for ad, rule in shown:
+        send_ad(tg, ad, rule=rule)
+        state["stats"]["forwarded"] += 1
+        state["stats"]["last_forward_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         time.sleep(SEND_PAUSE)
     if extra:
-        tg.send_message(f"…and {len(extra)} more new ads in this email. Open Avito to see them all.")
-        if not test:
-            for ad in extra:
-                remember(state, ad.id)
+        tg.send_message(f"…and {len(extra)} more matching ads in this email. Open Avito to see them all.")
     return len(shown)
 
 
-def read_commands(tg: Telegram, cfg: Config, state: dict) -> list[str]:
-    """Commands sent by the owner since the last run (others' messages are ignored)."""
+# ---------- bot commands ----------
+
+def read_commands(tg: Telegram, cfg: Config, state: dict) -> list[tuple[str, str]]:
+    """(command, arguments) sent by the owner since the last run; others are ignored."""
     commands = []
     for update in tg.get_updates(state["tg_offset"]):
         state["tg_offset"] = update["update_id"] + 1
@@ -99,20 +133,76 @@ def read_commands(tg: Telegram, cfg: Config, state: dict) -> list[str]:
             continue
         text = (message.get("text") or "").strip()
         if text.startswith("/"):
-            commands.append(text.split()[0].split("@")[0].lower())
+            name, _, args = text.partition(" ")
+            commands.append((name.split("@")[0].lower(), args.strip()))
     return commands
+
+
+def rules_text(state: dict) -> str:
+    if not state["rules"]:
+        return "No keyword rules yet, so every new ad is sent.\nAdd one with e.g. /add iphone 15 pro"
+    lines = ["<b>Your keyword rules</b> (an ad is sent if it matches any):"]
+    lines += [f"#{r['id']}: {filters.describe(r)}" for r in state["rules"]]
+    return "\n".join(lines)
+
+
+def handle_command(tg: Telegram, state: dict, cmd: str, args: str) -> None:
+    """Commands that don't need the mailbox. /test and /status are handled in run()."""
+    if cmd in ("/start", "/help"):
+        tg.send_message(HELP_TEXT)
+    elif cmd == "/add":
+        if not args:
+            tg.send_message("Tell me what to look for, e.g.\n/add iphone 15 pro -чехол &lt;90000")
+            return
+        if len(state["rules"]) >= filters.MAX_RULES:
+            tg.send_message(f"You already have {filters.MAX_RULES} rules. Remove some first (/list).")
+            return
+        try:
+            rule = filters.parse_rule(args)
+        except ValueError as e:
+            tg.send_message(f"❌ {html.escape(str(e))}")
+            return
+        rule["id"] = state["next_rule_id"]
+        state["next_rule_id"] += 1
+        state["rules"].append(rule)
+        tg.send_message(f"✅ Rule #{rule['id']} added: {filters.describe(rule)}")
+    elif cmd == "/list":
+        tg.send_message(rules_text(state))
+    elif cmd == "/remove":
+        if args.lower() == "all":
+            state["rules"].clear()
+            tg.send_message("🗑 All rules removed. Every new ad will be sent.")
+            return
+        ids = {int(x) for x in args.replace(",", " ").replace("#", " ").split() if x.isdigit()}
+        before = len(state["rules"])
+        state["rules"] = [r for r in state["rules"] if r["id"] not in ids]
+        if len(state["rules"]) == before:
+            tg.send_message("No rule with that number. Send /list to see them, then e.g. /remove 2")
+        else:
+            tg.send_message(f"🗑 Removed. {rules_text(state)}")
+    elif cmd == "/pause":
+        state["paused"] = True
+        tg.send_message("⏸ Paused. Avito emails arriving now will be skipped. Send /resume to continue.")
+    elif cmd == "/resume":
+        state["paused"] = False
+        tg.send_message("▶️ Resumed. Matching ads will be sent again.")
+    elif cmd not in ("/test", "/status"):
+        tg.send_message(f"Unknown command {html.escape(cmd)}. Send /help.")
 
 
 def status_text(cfg: Config, state: dict) -> str:
     last = state["stats"]["last_forward_at"] or "never"
+    rules = len(state["rules"])
     return (
         "<b>Tracker status</b>\n"
         f"State: {'⏸ paused' if state['paused'] else '▶️ running'}\n"
         f"Watching: {html.escape(cfg.email_address)} / {html.escape(cfg.imap_folder)}\n"
-        f"Emails from: {html.escape(', '.join(cfg.senders))}\n"
-        f"Ads forwarded: {state['stats']['forwarded']} (last: {html.escape(last)})"
+        f"Keyword rules: {rules if rules else 'none (every ad is sent)'}\n"
+        f"Ads sent: {state['stats']['forwarded']} (last: {html.escape(last)})"
     )
 
+
+# ---------- mailbox ----------
 
 def check_mail(tg: Telegram, cfg: Config, state: dict, want_test: bool) -> int:
     imap = state["imap"]
@@ -127,7 +217,7 @@ def check_mail(tg: Telegram, cfg: Config, state: dict, want_test: bool) -> int:
             first = imap["uidvalidity"] is None
             imap["uidvalidity"], imap["last_uid"] = uidvalidity, uidnext - 1
             tg.send_message(
-                "✅ Connected to your mailbox. New Avito emails will be forwarded from now on. "
+                "✅ Connected to your mailbox. New Avito emails will be checked from now on. "
                 "Send /test to try it on the latest one."
                 if first else
                 "ℹ️ Your mailbox was re-indexed by the provider; continuing with new emails from now on."
@@ -168,21 +258,13 @@ def run() -> int:
     tg = Telegram(cfg.telegram_token, cfg.telegram_chat_id)
     try:
         commands = read_commands(tg, cfg, state)
-        for cmd in commands:
-            if cmd in ("/start", "/help"):
-                tg.send_message(HELP_TEXT)
-            elif cmd == "/pause":
-                state["paused"] = True
-                tg.send_message("⏸ Paused. Avito emails arriving now will be skipped. Send /resume to continue.")
-            elif cmd == "/resume":
-                state["paused"] = False
-                tg.send_message("▶️ Resumed. New Avito ads will be forwarded again.")
-            elif cmd not in ("/test", "/status"):
-                tg.send_message(f"Unknown command {html.escape(cmd)}. Send /help.")
+        for cmd, args in commands:
+            handle_command(tg, state, cmd, args)
+        names = {cmd for cmd, _ in commands}
 
-        checked = check_mail(tg, cfg, state, want_test="/test" in commands)
+        checked = check_mail(tg, cfg, state, want_test="/test" in names)
 
-        if "/status" in commands:
+        if "/status" in names:
             tg.send_message(status_text(cfg, state))
         if state.get("last_error"):
             state["last_error"] = None

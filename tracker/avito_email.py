@@ -29,6 +29,12 @@ class Ad:
     title: str | None = None
     price: str | None = None
     image: str | None = None
+    price_value: int | None = None  # rubles, for price rules
+    text: str = ""                  # everything shown for the ad in the email, for keyword rules
+
+    @property
+    def search_text(self) -> str:
+        return f"{self.title or ''} {self.text}"
 
 
 def find_ad_in_url(href: str) -> tuple[str, str] | None:
@@ -80,12 +86,13 @@ def _clean(text: str | None) -> str:
     return _WS_RE.sub(" ", text or "").strip()
 
 
-def _format_price(text: str) -> str | None:
+def _price_value(text: str) -> int | None:
     m = _PRICE_RE.search(text)
-    if not m:
-        return None
-    digits = re.sub(r"\D", "", m.group(1))
-    return f"{int(digits):,}".replace(",", " ") + " ₽"
+    return int(re.sub(r"\D", "", m.group(1))) if m else None
+
+
+def _format_price(value: int | None) -> str | None:
+    return None if value is None else f"{value:,}".replace(",", " ") + " ₽"
 
 
 def parse_ads(msg: Message) -> list[Ad]:
@@ -134,7 +141,7 @@ def _parse_html(html: str) -> list[Ad]:
             card = card.parent
 
         card_text = _clean(card.get_text(" "))
-        price = _format_price(card_text)
+        price_value = _price_value(card_text)
 
         texts = [_clean(a.get_text(" ")) for a in anchors_by_ad[ad_id]]
         texts += [_clean(img.get("alt")) for img in card.find_all("img")]
@@ -152,5 +159,6 @@ def _parse_html(html: str) -> list[Ad]:
             image = src
             break
 
-        ads.append(Ad(id=ad_id, url=urls[ad_id], title=title, price=price, image=image))
+        ads.append(Ad(id=ad_id, url=urls[ad_id], title=title, price=_format_price(price_value),
+                      image=image, price_value=price_value, text=card_text[:1000]))
     return ads

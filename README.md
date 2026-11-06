@@ -61,14 +61,35 @@ What other people can see in a public repo:
 - **Visible in the run logs:** counts only, such as "OK: 0 command(s), 1 new Avito email(s)".
 - **Visible in `state.json`:** IDs of ads you were sent.
 
+## Keyword rules
+Tell the bot which ads you care about. Only ads matching at least one rule are sent.
+With no rules, every new ad is sent.
+
+| You send | You get ads that… |
+|---|---|
+| `/add iphone 15 pro` | contain **all** of these words |
+| `/add iphone 15 -чехол -разбит` | contain "iphone" and "15" but **not** "чехол" or "разбит" |
+| `/add iphone 15 <70000` | match and cost **at most** 70 000 ₽ (`<70k` also works) |
+| `/add диван >5000 <20000` | match and cost between 5 000 and 20 000 ₽ |
+
+- Matching ignores upper/lower case, and part of a word is enough: `айфон` also matches "айфона".
+- `/list` shows your rules with their numbers. `/remove 2` deletes rule #2, and `/remove all` deletes every rule.
+- Rules are checked against what the Avito email shows for each ad: the title, price and any extra text such as the location.
+
+**Rules only filter what Avito emails you.** The bot can't search Avito by itself, because Avito blocks automated
+searches. So your saved searches on Avito decide *which* ads reach the bot, and the keyword rules decide *which of those*
+you get on Telegram. For the widest coverage, save broad searches on Avito, such as a whole category in your city
+without keywords, and narrow them down with rules here.
+
 ## Bot commands
 Commands are answered on the next run, so it can take up to about 15 minutes on GitHub.
 
 | Command | What it does |
 |---|---|
-| `/status` | Running or paused, and how many ads have been forwarded |
+| `/add …`, `/list`, `/remove …` | Manage keyword rules (see above) |
+| `/status` | Running or paused, number of rules, and how many ads have been sent |
 | `/pause` / `/resume` | Stop or restart forwarding. Emails that arrive while paused are skipped. |
-| `/test` | Re-send the ads from the latest Avito email |
+| `/test` | Re-send the ads from the latest Avito email and say which ones match your rules |
 | `/help` | List the commands |
 
 The bot ignores messages from anyone except your own chat ID.

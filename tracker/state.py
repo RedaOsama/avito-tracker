@@ -10,6 +10,8 @@ DEFAULT_STATE = {
     "paused": False,
     "imap": {"uidvalidity": None, "last_uid": None},
     "seen_ads": [],
+    "rules": [],          # keyword rules, see filters.py
+    "next_rule_id": 1,
     "stats": {"forwarded": 0, "last_forward_at": None},
     "last_error": None,
 }
