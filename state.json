@@ -1,13 +1,34 @@
 {
-  "tg_offset": 988759122,
+  "tg_offset": 988759127,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
-    "last_uid": 44806
+    "last_uid": 44807
   },
   "seen_ads": [],
-  "rules": [],
-  "next_rule_id": 1,
+  "rules": [
+    {
+      "words": [
+        "boadicea",
+        "tiger"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 1
+    },
+    {
+      "words": [
+        "xerjoff",
+        "naxos"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 2
+    }
+  ],
+  "next_rule_id": 3,
   "stats": {
     "forwarded": 0,
     "last_forward_at": null
