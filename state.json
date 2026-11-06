@@ -1,5 +1,5 @@
 {
-  "tg_offset": 988759127,
+  "tg_offset": 988759128,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
@@ -26,9 +26,19 @@
       "min_price": null,
       "max_price": null,
       "id": 2
+    },
+    {
+      "words": [
+        "boadicea",
+        "tiger"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 3
     }
   ],
-  "next_rule_id": 3,
+  "next_rule_id": 4,
   "stats": {
     "forwarded": 0,
     "last_forward_at": null
