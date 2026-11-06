@@ -1,0 +1,49 @@
+name: Avito email tracker
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # GitHub may start runs a few minutes late
+  workflow_dispatch:         # "Run workflow" button for manual checks
+
+permissions:
+  contents: write            # to commit state.json back
+
+concurrency:
+  group: tracker
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Check mail and notify
+        run: python -m tracker.main
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          IMAP_HOST: ${{ vars.IMAP_HOST }}
+          IMAP_FOLDER: ${{ vars.IMAP_FOLDER }}
+          SENDER_FILTER: ${{ vars.SENDER_FILTER }}
+
+      - name: Save state
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain state.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state.json
+            git commit -m "Update tracker state [skip ci]"
+            git push
+          fi
