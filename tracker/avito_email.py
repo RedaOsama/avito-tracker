@@ -16,6 +16,11 @@ from bs4 import BeautifulSoup
 
 # .../moskva/telefony/iphone_15_128gb_4123456789  ->  path, id
 _AD_PATH_RE = re.compile(r"avito\.ru(/(?:[\w\-]+/)*[\w\-]*_(\d{6,}))(?![\w\-])", re.I)
+# Digest form: https://www.avito.ru/autosearch/get/<token>?itemId=8523578755&fromEmail=...
+_ITEM_LINK_RE = re.compile(
+    r"(https?://(?:www\.|m\.)?avito\.ru/[^\s\"'<>?#]*\?(?:[^\s\"'<>#]*&)?itemId=(\d{6,})[^\s\"'<>#]*)", re.I)
+# Avito photo URLs carry their size, e.g. https://86.img.avito.st/80x60/59173166588.jpg
+_IMG_SIZE_RE = re.compile(r"(img\.avito\.st/)\d+x\d+/", re.I)
 # Short form: avito.ru/4123456789
 _AD_SHORT_RE = re.compile(r"avito\.ru/(\d{6,})(?![\w\-])", re.I)
 _PRICE_RE = re.compile(r"(\d{1,3}(?:[    ]\d{3})+|\d+)\s*(?:₽|руб)", re.I)
@@ -37,13 +42,29 @@ class Ad:
         return f"{self.title or ''} {self.text}"
 
 
+def _item_id_link(candidate: str) -> tuple[str, str] | None:
+    """Avito's saved-search digests link ads as avito.ru/autosearch/get/<token>?itemId=<id>.
+
+    If the link is wrapped in another avito.ru redirect, use the innermost one.
+    """
+    starts = [m.start() for m in re.finditer(r"https?://", candidate)]
+    for start in reversed(starts):
+        m = _ITEM_LINK_RE.match(candidate, start)
+        if m:
+            return m.group(2), m.group(1)
+    return None
+
+
 def find_ad_in_url(href: str) -> tuple[str, str] | None:
-    """Return (ad_id, clean_url) if ``href`` points to an Avito ad, else None.
+    """Return (ad_id, url_to_open) if ``href`` points to an Avito ad, else None.
 
     Handles links wrapped in redirect/tracking URLs by URL-decoding repeatedly.
     """
-    candidate = href
+    candidate = href.strip()
     for _ in range(4):
+        found = _item_id_link(candidate)
+        if found:
+            return found
         m = _AD_PATH_RE.search(candidate)
         if m:
             return m.group(2), "https://www.avito.ru" + m.group(1)
@@ -156,7 +177,7 @@ def _parse_html(html: str) -> list[Ad]:
                 continue
             if img.get("width") in ("0", "1") or img.get("height") in ("0", "1"):
                 continue  # tracking pixel
-            image = src
+            image = _IMG_SIZE_RE.sub(r"\g<1>640x480/", src)  # emails carry tiny thumbnails
             break
 
         ads.append(Ad(id=ad_id, url=urls[ad_id], title=title, price=_format_price(price_value),

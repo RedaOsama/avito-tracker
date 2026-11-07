@@ -49,7 +49,8 @@ def format_ad(ad: Ad, test: bool = False, rule: dict | None = None) -> str:
         lines.append(f"💰 {html.escape(ad.price)}")
     if rule:
         lines.append(f"🔎 Rule #{rule['id']}: {filters.describe(rule)}")
-    lines.append(f'🔗 <a href="{html.escape(ad.url, quote=True)}">Open on Avito</a>')
+    lines.append(f'🔗 <a href="{html.escape(ad.url, quote=True)}">avito.ru/{html.escape(ad.id)}</a>'
+                 " (tap to open the ad)")
     return "\n".join(lines)
 
 
@@ -62,6 +63,12 @@ def send_ad(tg: Telegram, ad: Ad, test: bool = False, rule: dict | None = None) 
         except TelegramError:
             pass  # e.g. Telegram can't download the image: fall back to text
     tg.send_message(text)
+
+
+def is_account_email(subject: str) -> bool:
+    """Avito account emails (email change, login codes, …) aren't worth a notification."""
+    s = subject.lower()
+    return any(word in s for word in ("смена почты", "подтвержд", "код ", "пароль", "вход в"))
 
 
 def remember(state: dict, ad_id: str) -> None:
@@ -82,8 +89,9 @@ def forward_email(tg: Telegram, cfg: Config, state: dict, msg: Message, test: bo
         subject = html.escape(email_subject(msg))
         if test:
             tg.send_message(f"🧪 Test: the latest Avito email has no ads I could read.\n<b>{subject}</b>")
-        elif cfg.forward_unparsed:
-            tg.send_message(f"📩 New Avito email (no ads detected):\n<b>{subject}</b>")
+        elif cfg.forward_unparsed and not is_account_email(subject):
+            tg.send_message(f"📩 New Avito email (no ads detected):\n<b>{subject}</b>\n"
+                            "Check it in Gmail, and send /test so the reader can be fixed if needed.")
         return 0
 
     rules = state["rules"]

@@ -33,6 +33,32 @@ SAMPLE_HTML = """
 """
 
 
+# Same structure as Avito's real "Новые объявления" digest (tokens shortened).
+DIGEST_HTML = """
+<html><body>
+<a href="https://www.avito.ru/mailStat/click?redirect=https%3A%2F%2Fwww.avito.ru&token=abc"><img src="https://www.avito.st/logo.png"></a>
+<table><tr><td>
+  <a href=" https://www.avito.ru/autosearch/get/TOKENA">boadicea torero → Личные вещи</a>
+  <table><tr><td><img src="https://10.img.avito.st/80x60/111.jpg"></td>
+    <td><table><tr><td><a href=" https://www.avito.ru/autosearch/get/TOKENA?itemId=8503704966&fromEmail=autosearch.digest">Пробники, Отливанты</a></td></tr>
+    <tr><td>1 550 ₽</td></tr></table></td></tr></table>
+  <table><tr><td><img src="https://20.img.avito.st/80x60/222.jpg"></td>
+    <td><table><tr><td><a href=" https://www.avito.ru/autosearch/get/TOKENA?itemId=8400534958&fromEmail=autosearch.digest">Freccia 1921 Profumum Roma</a></td></tr>
+    <tr><td>4 000 ₽</td></tr><tr><td>Вчера 18:00 м. Арбатская</td></tr></table></td></tr></table>
+  <a href=" https://www.avito.ru/autosearch/get/TOKENA">Ещё новые объявления</a>
+</td></tr>
+<tr><td>
+  <a href=" https://www.avito.ru/autosearch/get/TOKENB">xerjoff naxos → Красота и здоровье</a>
+  <table><tr><td><a href=""><img src="https://86.img.avito.st/80x60/333.jpg"></a></td>
+    <td><table><tr><td><a href=" https://www.avito.ru/autosearch/get/TOKENB?itemId=8523578755&fromEmail=autosearch.digest">Xerjoff Naxos</a></td></tr>
+    <tr><td>12 000 ₽</td></tr></table></td></tr></table>
+  <a href=" https://www.avito.ru/autosearch/get/TOKENB">Ещё новые объявления</a>
+</td></tr></table>
+<a href="https://www.avito.ru/mailStat/click?redirect=https%3A%2F%2Fwww.avito.ru%2Fprofile%2Fsettings&token=x">Отписаться от рассылки</a>
+</body></html>
+"""
+
+
 def make_email(html=SAMPLE_HTML, text="Новые объявления"):
     msg = EmailMessage()
     msg["From"] = "Авито <noreply@avito.ru>"
@@ -88,6 +114,42 @@ def test_parses_ads_from_html_email():
     assert second.title == "iPhone 15 Pro 256GB"
     assert second.price == "89 990 ₽"
     assert second.image is None
+
+
+def test_parses_real_avito_digest_layout():
+    ads = parse_ads(make_email(DIGEST_HTML))
+    assert [(a.id, a.title, a.price) for a in ads] == [
+        ("8503704966", "Пробники, Отливанты", "1 550 ₽"),
+        ("8400534958", "Freccia 1921 Profumum Roma", "4 000 ₽"),
+        ("8523578755", "Xerjoff Naxos", "12 000 ₽"),
+    ]
+    naxos = ads[2]
+    assert naxos.url == ("https://www.avito.ru/autosearch/get/TOKENB"
+                         "?itemId=8523578755&fromEmail=autosearch.digest")
+    assert naxos.image == "https://86.img.avito.st/640x480/333.jpg"  # bigger than the thumbnail
+
+
+def test_message_shows_ad_link():
+    ad = parse_ads(make_email(DIGEST_HTML))[2]
+    text = main.format_ad(ad)
+    assert "avito.ru/8523578755" in text
+    assert 'href="https://www.avito.ru/autosearch/get/TOKENB?itemId=8523578755' in text
+
+
+def test_redirect_wrapped_item_link():
+    href = ("https://www.avito.ru/mailStat/click?redirect=https%3A%2F%2Fwww.avito.ru%2Fautosearch%2Fget%2FT"
+            "%3FitemId%3D8523578755&token=x")
+    ad_id, url = find_ad_in_url(href)
+    assert ad_id == "8523578755"
+    assert url.startswith("https://www.avito.ru/autosearch/get/T?itemId=8523578755")
+
+
+def test_account_emails_are_not_announced():
+    tg, cfg, state = FakeTelegram(), make_config(), fresh_state()
+    msg = make_email(html="<p>Подтвердите почту</p>")
+    msg.replace_header("Subject", "📫 Смена почты для профиля")
+    main.forward_email(tg, cfg, state, msg)
+    assert tg.sent == []
 
 
 @pytest.mark.parametrize("href", [
