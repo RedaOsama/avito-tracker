@@ -3,9 +3,13 @@
   "paused": false,
   "imap": {
     "uidvalidity": 1,
-    "last_uid": 44810
+    "last_uid": 44811
   },
-  "seen_ads": [],
+  "seen_ads": [
+    "8503704966",
+    "8400534958",
+    "8523578755"
+  ],
   "rules": [
     {
       "words": [
@@ -50,8 +54,8 @@
   ],
   "next_rule_id": 5,
   "stats": {
-    "forwarded": 0,
-    "last_forward_at": null
+    "forwarded": 1,
+    "last_forward_at": "2026-11-07T08:20:14+00:00"
   },
   "last_error": null
 }
