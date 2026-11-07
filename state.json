@@ -1,5 +1,5 @@
 {
-  "tg_offset": 988759128,
+  "tg_offset": 988759129,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
@@ -36,9 +36,19 @@
       "min_price": null,
       "max_price": null,
       "id": 3
+    },
+    {
+      "words": [
+        "boadicea",
+        "torero"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 4
     }
   ],
-  "next_rule_id": 4,
+  "next_rule_id": 5,
   "stats": {
     "forwarded": 0,
     "last_forward_at": null
