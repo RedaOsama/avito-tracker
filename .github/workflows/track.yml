@@ -36,6 +36,8 @@ jobs:
           IMAP_HOST: ${{ vars.IMAP_HOST }}
           IMAP_FOLDER: ${{ vars.IMAP_FOLDER }}
           SENDER_FILTER: ${{ vars.SENDER_FILTER }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+          QUEUE_SECRET: ${{ secrets.QUEUE_SECRET }}
 
       - name: Save state
         if: always()

@@ -1,0 +1,16 @@
+name = "avito-tracker"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+GITHUB_REPO = "RedaOsama/avito-tracker"
+GITHUB_WORKFLOW = "track.yml"
+
+[[durable_objects.bindings]]
+name = "QUEUE"
+class_name = "CommandQueue"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CommandQueue"]

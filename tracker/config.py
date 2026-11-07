@@ -20,6 +20,8 @@ class Config:
     max_ads_per_email: int = 10
     max_emails_per_run: int = 10
     forward_unparsed: bool = True
+    worker_url: str = ""    # Cloudflare Worker that queues commands (fast replies)
+    queue_secret: str = ""
 
 
 def load_config() -> Config:
@@ -50,4 +52,6 @@ def load_config() -> Config:
         max_ads_per_email=int(opt("MAX_ADS_PER_EMAIL", "10")),
         max_emails_per_run=int(opt("MAX_EMAILS_PER_RUN", "10")),
         forward_unparsed=opt("FORWARD_UNPARSED", "true").lower() in ("1", "true", "yes"),
+        worker_url=opt("WORKER_URL", ""),
+        queue_secret=opt("QUEUE_SECRET", ""),
     )

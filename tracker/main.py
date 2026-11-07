@@ -14,6 +14,7 @@ from email.message import Message
 
 from . import filters
 from .avito_email import Ad, email_subject, parse_ads
+from .command_queue import CommandQueue, QueueError
 from .config import Config, load_config
 from .mail import Mailbox
 from .state import load_state, save_state
@@ -36,7 +37,7 @@ HELP_TEXT = (
     "/status – tracker status\n"
     "/pause, /resume – stop / restart notifications\n"
     "/test – re-check the latest Avito email\n\n"
-    "Replies come on the next check (about 5–15 min)."
+    "I react 👀 when I get your command and reply within about a minute."
 )
 
 
@@ -131,10 +132,26 @@ def forward_email(tg: Telegram, cfg: Config, state: dict, msg: Message, test: bo
 
 # ---------- bot commands ----------
 
-def read_commands(tg: Telegram, cfg: Config, state: dict) -> list[tuple[str, str]]:
+def fetch_updates(tg: Telegram, queue: CommandQueue | None, state: dict) -> list[dict]:
+    """New Telegram updates: from the Worker's queue if configured, else straight from Telegram."""
+    if queue is not None:
+        return queue.pending()
+    try:
+        return tg.get_updates(state["tg_offset"])
+    except TelegramError as e:
+        if "webhook" in str(e).lower():
+            # The Worker receives messages now; this copy (e.g. a local run) can't read them.
+            print("Commands skipped: Telegram webhook is active and WORKER_URL/QUEUE_SECRET aren't set.")
+            return []
+        raise
+
+
+def read_commands(updates: list[dict], cfg: Config, state: dict) -> list[tuple[str, str]]:
     """(command, arguments) sent by the owner since the last run; others are ignored."""
     commands = []
-    for update in tg.get_updates(state["tg_offset"]):
+    for update in sorted(updates, key=lambda u: u["update_id"]):
+        if update["update_id"] < state["tg_offset"]:
+            continue  # already handled in an earlier run
         state["tg_offset"] = update["update_id"] + 1
         message = update.get("message") or {}
         if str(message.get("chat", {}).get("id")) != cfg.telegram_chat_id:
@@ -264,8 +281,17 @@ def run() -> int:
     cfg = load_config()
     state = load_state(cfg.state_file)
     tg = Telegram(cfg.telegram_token, cfg.telegram_chat_id)
+    queue = CommandQueue(cfg.worker_url, cfg.queue_secret) if cfg.worker_url and cfg.queue_secret else None
+    acked_up_to = None
     try:
-        commands = read_commands(tg, cfg, state)
+        try:
+            updates = fetch_updates(tg, queue, state)
+        except QueueError as e:
+            print(f"ERROR: command queue unavailable ({e}); checking mail anyway.")
+            updates = []
+        commands = read_commands(updates, cfg, state)
+        if updates:
+            acked_up_to = max(u["update_id"] for u in updates)
         for cmd, args in commands:
             handle_command(tg, state, cmd, args)
         names = {cmd for cmd, _ in commands}
@@ -288,6 +314,11 @@ def run() -> int:
         print(f"ERROR: Telegram: {e}")  # can't report a Telegram failure via Telegram
     finally:
         save_state(cfg.state_file, state)
+        if queue is not None and acked_up_to is not None:
+            try:
+                queue.ack(acked_up_to)  # if this fails, tg_offset still prevents repeats
+            except QueueError as e:
+                print(f"ERROR: could not confirm commands with the queue ({e}).")
     return 1
 
 

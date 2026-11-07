@@ -209,8 +209,40 @@ def test_commands_only_from_owner():
         {"update_id": 12, "message": {"chat": {"id": 42}, "text": "hello"}},
     ]
     state = fresh_state()
-    assert main.read_commands(FakeTelegram(updates), make_config(), state) == [("/status", "")]
+    assert main.read_commands(updates, make_config(), state) == [("/status", "")]
     assert state["tg_offset"] == 13
+
+
+def test_already_handled_updates_are_skipped():
+    """If the queue couldn't be confirmed last run, the same commands come back: don't redo them."""
+    state = fresh_state()
+    state["tg_offset"] = 12
+    updates = [{"update_id": 11, "message": {"chat": {"id": 42}, "text": "/add old"}},
+               {"update_id": 12, "message": {"chat": {"id": 42}, "text": "/list"}}]
+    assert main.read_commands(updates, make_config(), state) == [("/list", "")]
+
+
+class FakeQueue:
+    def __init__(self, updates):
+        self.updates, self.acked = updates, None
+
+    def pending(self):
+        return self.updates
+
+    def ack(self, max_id):
+        self.acked = max_id
+
+
+def test_fetch_updates_prefers_queue():
+    q = FakeQueue([{"update_id": 5}])
+    assert main.fetch_updates(FakeTelegram([{"update_id": 9}]), q, fresh_state()) == [{"update_id": 5}]
+
+
+def test_fetch_updates_skips_when_webhook_active():
+    class WebhookTelegram(FakeTelegram):
+        def get_updates(self, offset):
+            raise main.TelegramError("getUpdates: Conflict: can't use getUpdates method while webhook is active")
+    assert main.fetch_updates(WebhookTelegram(), None, fresh_state()) == []
 
 
 # ---------- keyword rules ----------
