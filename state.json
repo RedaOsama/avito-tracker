@@ -1,5 +1,5 @@
 {
-  "tg_offset": 988759146,
+  "tg_offset": 988759147,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
@@ -152,9 +152,19 @@
       "min_price": null,
       "max_price": null,
       "id": 15
+    },
+    {
+      "words": [
+        "bois",
+        "imperial"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 16
     }
   ],
-  "next_rule_id": 16,
+  "next_rule_id": 17,
   "stats": {
     "forwarded": 1,
     "last_forward_at": "2026-11-07T08:20:14+00:00"
