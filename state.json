@@ -1,5 +1,5 @@
 {
-  "tg_offset": 988759142,
+  "tg_offset": 988759143,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
@@ -121,9 +121,20 @@
       "min_price": null,
       "max_price": null,
       "id": 12
+    },
+    {
+      "words": [
+        "boadicea",
+        "rouge",
+        "temptation"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 13
     }
   ],
-  "next_rule_id": 13,
+  "next_rule_id": 14,
   "stats": {
     "forwarded": 1,
     "last_forward_at": "2026-11-07T08:20:14+00:00"
