@@ -1,5 +1,5 @@
 {
-  "tg_offset": 988759131,
+  "tg_offset": 988759137,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
@@ -34,25 +34,65 @@
     {
       "words": [
         "boadicea",
-        "tiger"
-      ],
-      "exclude": [],
-      "min_price": null,
-      "max_price": null,
-      "id": 3
-    },
-    {
-      "words": [
-        "boadicea",
         "torero"
       ],
       "exclude": [],
       "min_price": null,
       "max_price": null,
       "id": 4
+    },
+    {
+      "words": [
+        "boadicea",
+        "tiangou"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 5
+    },
+    {
+      "words": [
+        "boadicea",
+        "moccus"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 6
+    },
+    {
+      "words": [
+        "boadicea",
+        "aurica"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 7
+    },
+    {
+      "words": [
+        "boadicea",
+        "abraxas"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 8
+    },
+    {
+      "words": [
+        "boadicea",
+        "astrea"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 9
     }
   ],
-  "next_rule_id": 5,
+  "next_rule_id": 10,
   "stats": {
     "forwarded": 1,
     "last_forward_at": "2026-11-07T08:20:14+00:00"
