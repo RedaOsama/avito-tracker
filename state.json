@@ -1,5 +1,5 @@
 {
-  "tg_offset": 988759137,
+  "tg_offset": 988759140,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
@@ -90,9 +90,29 @@
       "min_price": null,
       "max_price": null,
       "id": 9
+    },
+    {
+      "words": [
+        "roja",
+        "britannia"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 10
+    },
+    {
+      "words": [
+        "roja",
+        "diaghliev"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 11
     }
   ],
-  "next_rule_id": 10,
+  "next_rule_id": 12,
   "stats": {
     "forwarded": 1,
     "last_forward_at": "2026-11-07T08:20:14+00:00"
