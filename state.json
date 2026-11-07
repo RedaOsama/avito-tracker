@@ -1,5 +1,5 @@
 {
-  "tg_offset": 988759144,
+  "tg_offset": 988759145,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
@@ -142,9 +142,19 @@
       "min_price": null,
       "max_price": null,
       "id": 14
+    },
+    {
+      "words": [
+        "violet",
+        "sapphire"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 15
     }
   ],
-  "next_rule_id": 15,
+  "next_rule_id": 16,
   "stats": {
     "forwarded": 1,
     "last_forward_at": "2026-11-07T08:20:14+00:00"
