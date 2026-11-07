@@ -1,5 +1,5 @@
 {
-  "tg_offset": 988759143,
+  "tg_offset": 988759144,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
@@ -132,9 +132,19 @@
       "min_price": null,
       "max_price": null,
       "id": 13
+    },
+    {
+      "words": [
+        "amouage",
+        "ciel"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 14
     }
   ],
-  "next_rule_id": 14,
+  "next_rule_id": 15,
   "stats": {
     "forwarded": 1,
     "last_forward_at": "2026-11-07T08:20:14+00:00"
