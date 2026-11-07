@@ -1,5 +1,5 @@
 {
-  "tg_offset": 988759141,
+  "tg_offset": 988759142,
   "paused": false,
   "imap": {
     "uidvalidity": 1,
@@ -110,9 +110,20 @@
       "min_price": null,
       "max_price": null,
       "id": 11
+    },
+    {
+      "words": [
+        "clive",
+        "christian",
+        "manic"
+      ],
+      "exclude": [],
+      "min_price": null,
+      "max_price": null,
+      "id": 12
     }
   ],
-  "next_rule_id": 12,
+  "next_rule_id": 13,
   "stats": {
     "forwarded": 1,
     "last_forward_at": "2026-11-07T08:20:14+00:00"
