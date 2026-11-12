@@ -3,7 +3,7 @@
   "paused": false,
   "imap": {
     "uidvalidity": 1,
-    "last_uid": 44897
+    "last_uid": 44898
   },
   "seen_ads": [
     "8503704966",
@@ -74,7 +74,8 @@
     "8401061126",
     "8422663291",
     "8523382331",
-    "8514428345"
+    "8514428345",
+    "8026930293"
   ],
   "rules": [
     {
@@ -232,8 +233,8 @@
   ],
   "next_rule_id": 17,
   "stats": {
-    "forwarded": 4,
-    "last_forward_at": "2026-11-10T18:04:11+00:00"
+    "forwarded": 5,
+    "last_forward_at": "2026-11-12T19:25:10+00:00"
   },
   "last_error": null
 }
