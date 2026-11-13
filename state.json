@@ -236,5 +236,5 @@
     "forwarded": 5,
     "last_forward_at": "2026-11-12T19:25:10+00:00"
   },
-  "last_error": null
+  "last_error": "Network problem while reading your mailbox; will retry next run."
 }
